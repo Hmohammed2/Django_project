@@ -5,7 +5,9 @@ from . import models
 class CollectionSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Collection
-        fields = ['id', 'title']
+        fields = ['id', 'title', 'products_count']
+
+    products_count = serializers.IntegerField()
 
 class ProductSerializer(serializers.ModelSerializer):
     
@@ -18,3 +20,9 @@ class ProductSerializer(serializers.ModelSerializer):
     
     def calculate_tax(self, product: models.Product):
         return product.unit_price * Decimal(1.10)
+
+class CartSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.Cart
+        fields = ['id', 'created_at']
