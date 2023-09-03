@@ -93,7 +93,7 @@ class CustomerViewSet(CreateModelMixin, UpdateModelMixin, RetrieveModelMixin, Ge
 
     @action(detail=False, methods=['GET', 'PUT'])
     def me(self, request):
-        (customer, created) = Customer.objects.get_or_create(user_id=request.user.id)
+        customer = Customer.objects.get(user_id=request.user.id)
         if request.method == 'GET':
         #  request,user is by default set as an AnonymousUser. Otherwise we can set this as a request object
             serializer = CustomerSerializer(customer)
@@ -105,7 +105,7 @@ class CustomerViewSet(CreateModelMixin, UpdateModelMixin, RetrieveModelMixin, Ge
             return Response(serializer.data)
 
 class OrderViewSet(ModelViewSet):
-    http_method_names = ['get', 'patch', 'delete', 'head', 'options']
+    http_method_names = ['get', 'post', 'patch', 'delete', 'head', 'options']
 
     def get_permissions(self):
         if self.request.method in ['PATCH', 'DELETE']:
@@ -136,5 +136,6 @@ class OrderViewSet(ModelViewSet):
             return Order.objects.all()
         
         # Tuple unpacking
-        (customer_id, created) = Customer.objects.only('id').get_or_create(user_id=user)
+        customer_id = Customer.objects.get('id').get_or_create(user_id=user)
+
         return Order.objects.filter(customer_id=customer_id)

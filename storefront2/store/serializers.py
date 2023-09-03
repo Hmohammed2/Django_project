@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.db import transaction
 from decimal import Decimal
 from . import models
+from .signals import order_created
 
 
 class CollectionSerializer(serializers.ModelSerializer):
@@ -147,7 +148,7 @@ class CreateOrderSerializer(serializers.Serializer):
         with transaction.atomic():
             cart_id = self.validated_data['cart_id']
             # Tuple unpacking
-            (customer,  created) = models.Customer.objects.get_or_create(user_id=self.context['user_id'])
+            customer = models.Customer.objects.get(user_id=self.context['user_id'])
             order = models.Order.objects.create(customer=customer)
         
             cart_items = models.CartItem.objects.filter(
@@ -164,5 +165,7 @@ class CreateOrderSerializer(serializers.Serializer):
 
             models.OrderItem.objects.bulk_create(order_items)
             models.Cart.objects.filter(pk=cart_id).delete()
+
+            order_created
 
             return order
