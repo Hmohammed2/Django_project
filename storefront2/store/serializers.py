@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import transaction
 from decimal import Decimal
 from . import models
 
@@ -103,8 +104,65 @@ class CartSerializer(serializers.ModelSerializer):
         return sum([item.quantity * item.product.unit_price for item in cart.items.all()]) 
     
 class CustomerSerializer(serializers.ModelSerializer):
-    user_id = serializers.IntegerField()
+    user_id = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = models.Customer
         fields = ["id", "user_id", "phone", "birth_date", "membership"]
+
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product = SimpleProductSerializer()
+    class Meta:
+        model = models.OrderItem
+        fields = ['id','product', 'unit_price', 'quantity']
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True)
+
+    class Meta:
+        model = models.Order
+        fields = ['id', 'customer', 'placed_at', 'payment_status', 'items']
+
+class UpdateOrderSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Order
+        fields = ['payment_status']
+
+class CreateOrderSerializer(serializers.Serializer):
+    cart_id = serializers.UUIDField()
+
+    def validate_cart_id(self, cart_id):
+        if not models.Cart.objects.filter(pk=cart_id).exists():
+            raise serializers.ValidationError('No cart with the given id was found')
+        if models.CartItem.objects.filter(cart_id=cart_id).count() == 0:
+            raise serializers.ValidationError("cart is empty")
+        return cart_id
+
+    ''' Creates an order, validates it against the cart id. Returns information storing it into variable order items which uses list comprehension.\
+    delete cart afterwards 
+    '''
+    def save(self, **kwargs):
+        # wrapping up function in transaction.atomic. Makes it so either all the code gets executed or if something goes wrong all changes get rolled back.
+        with transaction.atomic():
+            cart_id = self.validated_data['cart_id']
+            # Tuple unpacking
+            (customer,  created) = models.Customer.objects.get_or_create(user_id=self.context['user_id'])
+            order = models.Order.objects.create(customer=customer)
+        
+            cart_items = models.CartItem.objects.filter(
+                cart_id=cart_id
+            )
+
+            order_items = [
+                models.OrderItem(
+                        order=order,
+                        product = item.product,
+                        unit_price= item.quantity,
+                        quantity=item.quantity
+            ) for item in cart_items]
+
+            models.OrderItem.objects.bulk_create(order_items)
+            models.Cart.objects.filter(pk=cart_id).delete()
+
+            return order
